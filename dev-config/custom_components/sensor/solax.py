@@ -82,7 +82,7 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
 
 async def async_solax_dashboard_request(hass, schema, solax_id, token, retry, wait_time=0):
     if wait_time > 0:
-        _LOGGER.warn("Waiting %d to retry Solax", wait_time)
+        _LOGGER.warn("Timeout connecting to Solax, waiting %d to retry.", wait_time)
         asyncio.sleep(wait_time)
     new_wait = (wait_time*2)+5
     retry = retry - 1
@@ -95,10 +95,9 @@ async def async_solax_dashboard_request(hass, schema, solax_id, token, retry, wa
         json_response = await req.json()
         return schema(json_response)
     except (asyncio.TimeoutError):
-        _LOGGER.error("Timeout connecting to Solax API endpoint")
         if retry > 0:
-            _LOGGER.warn("Retrying Solax")
             return await async_solax_dashboard_request(hass, schema, solax_id, token, retry, new_wait)
+        _LOGGER.error("Too many timeouts connecting to Solax.")
     except (aiohttp.ClientError) as clientErr:
         _LOGGER.error("Could not connect to Solax API endpoint")
         _LOGGER.error(clientErr)
@@ -147,7 +146,6 @@ class BatteryEndpoint:
         """
         try:
             json = await async_solax_dashboard_request(self.hass, BATTERY_SCHEMA, self.solax_id, self.token, 3)
-            _LOGGER.info("called async_update %s", json)
             self.data = parse_solax_battery_response(json)
             self.ready.set()
         except SolaxRequestError:
@@ -158,7 +156,7 @@ class BatteryEndpoint:
         for s in self.sensors:
             if s._key in self.data:
                 s._value = self.data[s._key]
-            s.async_schedule_update_ha_state(force_refresh=True)
+            s.async_schedule_update_ha_state()
 
 
 class Battery(Entity):
@@ -169,7 +167,6 @@ class Battery(Entity):
     
     @property
     def state(self):
-        _LOGGER.warn('state')
         return self._value
 
     @property
@@ -186,3 +183,8 @@ class Battery(Entity):
             ATTR_TEMPERATURE: TEMP_CELSIUS,
             ATTR_REMAINING_CAPACITY: '%'
         }[self._key]
+    
+    @property
+    def should_poll(self):
+        """No polling needed."""
+        return False
