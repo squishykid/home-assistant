@@ -156,6 +156,8 @@ class BatteryEndpoint:
             else:
                 raise PlatformNotReady
         for s in self.sensors:
+            if s._key in self.data:
+                s._value = self.data[s._key]
             s.async_schedule_update_ha_state(force_refresh=True)
 
 
@@ -184,10 +186,3 @@ class Battery(Entity):
             ATTR_TEMPERATURE: TEMP_CELSIUS,
             ATTR_REMAINING_CAPACITY: '%'
         }[self._key]
-    
-    async def async_update(self):
-        """Update station state."""
-        _LOGGER.warn('async_update')
-        if self._endpoint.ready.is_set():
-            if self._key in self._endpoint.data:
-                self._value = self._endpoint.data[self._key]
