@@ -20,28 +20,59 @@ from homeassistant.helpers.event import async_track_time_interval
 
 _LOGGER = logging.getLogger(__name__)
 
-ATTR_VOLTAGE = 'Voltage'
-ATTR_CURRENT = 'Current'
-ATTR_POWER = 'Power'
-ATTR_TEMPERATURE = 'Temperature'
-ATTR_REMAINING_CAPACITY = 'Remaining Capacity'
-BATTERY_SENSORS = [
-    ATTR_VOLTAGE,
-    ATTR_CURRENT,
-    ATTR_POWER,
-    ATTR_TEMPERATURE,
-    ATTR_REMAINING_CAPACITY
-]
+ATTR_PV1_CURRENT = 'PV1 Current'
+ATTR_PV2_CURRENT = 'PV2 Current'
+ATTR_PV1_VOLTAGE = 'PV1 Voltage'
+ATTR_PV2_VOLTAGE = 'PV2 Voltage'
+ATTR_PV1_POWER = 'PV1 Input Power'
+ATTR_PV1_POWER = 'PV1 Input Power'
+ATTR_OUTPUT_CURRENT = 'Output Current'
+ATTR_NETWORK_VOLTAGE = 'Network Voltage'
+ATTR_POWER_NOW = 'Power Now'
+ATTR_EXPORTED_POWER = 'Exported Power'
+ATTR_EXPORTED_ENERGY = 'Exported energy'
+ATTR_GRID_CONSUMPTION = 'Grid Consumption'
+ATTR_FREQ_AC = 'FAC1'
+ATTR_TODAY_ENERGY = 'Today\'s Energy'
+ATTR_TOTAL_ENERGY = 'Total Energy'
+ATTR_EPS_VOLTAGE = 'EPS Voltage'
+ATTR_EPS_CURRENT = 'EPS Current'
+ATTR_EPS_POWER = 'EPS Power'
+ATTR_EPS_FREQUENCY = 'EPS Frequency'
+ATTR_BMS_LOST = 'BMS Lost'
+
+INVERTER_SENSORS = {
+    ATTR_PV1_CURRENT: 'A',
+    ATTR_PV2_CURRENT: 'A',
+    ATTR_PV1_VOLTAGE: 'V',
+    ATTR_PV2_VOLTAGE: 'V',
+    ATTR_PV1_POWER: 'W',
+    ATTR_PV1_POWER: 'W',
+    ATTR_OUTPUT_CURRENT: 'A',
+    ATTR_NETWORK_VOLTAGE: 'V',
+    ATTR_POWER_NOW: 'W',
+    ATTR_EXPORTED_POWER: 'W',
+    ATTR_EXPORTED_ENERGY: 'kWh',
+    ATTR_GRID_CONSUMPTION: 'kWh',
+    ATTR_FREQ_AC: 'Hz',
+    ATTR_TODAY_ENERGY: 'kWh',
+    ATTR_TOTAL_ENERGY: 'kWh',
+    ATTR_EPS_VOLTAGE: 'V',
+    ATTR_EPS_CURRENT: 'A',
+    ATTR_EPS_POWER: 'W',
+    ATTR_EPS_FREQUENCY: 'Hz',
+    ATTR_BMS_LOST: None,
+}
 
 PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend({
     vol.Required(CONF_ID): cv.string,
     vol.Required(CONF_TOKEN): cv.string,
 })
 
-SCAN_INTERVAL = timedelta(minutes=30)
+SCAN_INTERVAL = timedelta(seconds=30)
 REQUEST_TIMEOUT = 5
 
-BATTERY_ENDPOINT = 'https://www.solax-portal.com/api/v1/site/BatteryList/{solax_id}?token={token}'
+INVERTER_ENDPOINT = 'https://www.solax-portal.com/api/v1/site/InverterList/{solax_id}?token={token}'
 
 SOLAX_BATTERY_DATA = vol.Schema({
     vol.Required('key'): cv.string,
@@ -54,12 +85,8 @@ SOLAX_BATTERY_SCHEMA = vol.Schema({
     vol.Required('dataDict'): [SOLAX_BATTERY_DATA],
 }, extra=vol.REMOVE_EXTRA)
 
-SOLAX_DATA_SCHEMA = vol.Schema({
-    vol.Required('batList'): [SOLAX_BATTERY_SCHEMA],
-}, extra=vol.REMOVE_EXTRA)
-
-BATTERY_SCHEMA = vol.Schema({
-    vol.Required('data'): [SOLAX_DATA_SCHEMA],
+INVERTER_SCHEMA = vol.Schema({
+    vol.Required('data'): [SOLAX_BATTERY_SCHEMA],
 }, extra=vol.REMOVE_EXTRA)
 
 class SolaxRequestError(Exception):
@@ -69,13 +96,12 @@ class SolaxRequestError(Exception):
 
 async def async_setup_platform(hass, config, async_add_entities, discovery_info=None):
     """Setup the sensor platform."""
-    update_interval = timedelta(seconds=30)
     endpoint = BatteryEndpoint(hass, config.get(CONF_ID), config.get(CONF_TOKEN))
     hass.async_add_job(endpoint.async_refresh)
-    async_track_time_interval(hass, endpoint.async_refresh, update_interval)
+    async_track_time_interval(hass, endpoint.async_refresh, SCAN_INTERVAL)
     devices = []
-    for x in BATTERY_SENSORS:
-        devices.append(Battery(x))
+    for x in INVERTER_SENSORS:
+        devices.append(Inverter(x))
     endpoint.sensors = devices
     async_add_entities(devices)
 
@@ -90,7 +116,7 @@ async def async_solax_dashboard_request(hass, schema, solax_id, token, retry, wa
         session = async_get_clientsession(hass)
 
         with async_timeout.timeout(REQUEST_TIMEOUT, loop=hass.loop):
-            req = await session.get(BATTERY_ENDPOINT.format(solax_id=solax_id, token=token))
+            req = await session.get(INVERTER_ENDPOINT.format(solax_id=solax_id, token=token))
         
         json_response = await req.json()
         return schema(json_response)
@@ -110,21 +136,14 @@ async def async_solax_dashboard_request(hass, schema, solax_id, token, retry, wa
     raise SolaxRequestError
 
 def parse_solax_battery_response(json):
-    dataDict = json['data'][0]['batList'][0]['dataDict']
-    def extract(key):
-        return next((i for i in dataDict if i['key'] == key), dict(value=None))['value']
-    volts = extract('b1_1')
-    current = extract('b1_2')
-    power = extract('b1_3')
-    temperature = extract('b1_4')
-    remaining = extract('b1_5')
-    return {
-        ATTR_VOLTAGE: volts,
-        ATTR_CURRENT: current,
-        ATTR_POWER: power,
-        ATTR_TEMPERATURE: temperature,
-        ATTR_REMAINING_CAPACITY: remaining
-    }
+    dataDict = json['data'][0]['dataDict']
+    result = {}
+    for e in dataDict:
+        test = INVERTER_SENSORS.get(e['name'], 1)
+        if test == 1:
+            continue
+        result[e['name']] = e['value']
+    return result
 
 
 class BatteryEndpoint:
@@ -145,7 +164,7 @@ class BatteryEndpoint:
         This is the only method that should fetch new data for Home Assistant.
         """
         try:
-            json = await async_solax_dashboard_request(self.hass, BATTERY_SCHEMA, self.solax_id, self.token, 3)
+            json = await async_solax_dashboard_request(self.hass, INVERTER_SCHEMA, self.solax_id, self.token, 3)
             self.data = parse_solax_battery_response(json)
             self.ready.set()
         except SolaxRequestError:
@@ -159,7 +178,7 @@ class BatteryEndpoint:
             s.async_schedule_update_ha_state()
 
 
-class Battery(Entity):
+class Inverter(Entity):
     def __init__(self, key):
         self._key = key
         self._value = None
@@ -175,13 +194,7 @@ class Battery(Entity):
     @property
     def unit_of_measurement(self):
         """Return the unit of measurement."""
-        return {
-            ATTR_VOLTAGE: 'V',
-            ATTR_CURRENT: 'A',
-            ATTR_POWER: 'W',
-            ATTR_TEMPERATURE: TEMP_CELSIUS,
-            ATTR_REMAINING_CAPACITY: '%'
-        }[self._key]
+        return INVERTER_SENSORS[self._key]
     
     @property
     def should_poll(self):
