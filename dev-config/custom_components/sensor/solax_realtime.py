@@ -21,27 +21,6 @@ from homeassistant.helpers.event import async_track_time_interval
 
 _LOGGER = logging.getLogger(__name__)
 
-ATTR_PV1_CURRENT = 'PV1 Current'
-ATTR_PV2_CURRENT = 'PV2 Current'
-ATTR_PV1_VOLTAGE = 'PV1 Voltage'
-ATTR_PV2_VOLTAGE = 'PV2 Voltage'
-ATTR_PV1_POWER = 'PV1 Input Power'
-ATTR_PV2_POWER = 'PV2 Input Power'
-ATTR_OUTPUT_CURRENT = 'Output Current'
-ATTR_NETWORK_VOLTAGE = 'Network Voltage'
-ATTR_POWER_NOW = 'Power Now'
-ATTR_EXPORTED_POWER = 'Exported Power'
-ATTR_EXPORTED_ENERGY = 'Exported energy'
-ATTR_GRID_CONSUMPTION = 'Grid Consumption'
-ATTR_FREQ_AC = 'FAC1'
-ATTR_TODAY_ENERGY = 'Today\'s Energy'
-ATTR_TOTAL_ENERGY = 'Total Energy'
-ATTR_EPS_VOLTAGE = 'EPS Voltage'
-ATTR_EPS_CURRENT = 'EPS Current'
-ATTR_EPS_POWER = 'EPS Power'
-ATTR_EPS_FREQUENCY = 'EPS Frequency'
-ATTR_BMS_LOST = 'BMS Lost'
-
 # key: name of sensor
 # value.0: index
 # value.1: unit (String) or None
@@ -78,21 +57,6 @@ INVERTER_SENSORS = {
     'EPS Current':          (54, 'A'),
     'EPS Apparent Power':   (55, 'VA'),
     'EPS Frequency':        (56, 'Hz'),
-
-    # ATTR_OUTPUT_CURRENT: 'A',
-    # ATTR_NETWORK_VOLTAGE: 'V',
-    # ATTR_POWER_NOW: 'W',
-    # ATTR_EXPORTED_POWER: 'W',
-    # ATTR_EXPORTED_ENERGY: 'kWh',
-    # ATTR_GRID_CONSUMPTION: 'kWh',
-    # ATTR_FREQ_AC: 'Hz',
-    # ATTR_TODAY_ENERGY: 'kWh',
-    # ATTR_TOTAL_ENERGY: 'kWh',
-    # ATTR_EPS_VOLTAGE: 'V',
-    # ATTR_EPS_CURRENT: 'A',
-    # ATTR_EPS_POWER: 'W',
-    # ATTR_EPS_FREQUENCY: 'Hz',
-    # ATTR_BMS_LOST: None,
 }
 
 PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend({
