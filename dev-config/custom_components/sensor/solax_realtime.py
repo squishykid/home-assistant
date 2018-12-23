@@ -1,0 +1,236 @@
+import asyncio
+
+from datetime import timedelta
+import logging
+
+import aiohttp
+import json
+import async_timeout
+import voluptuous as vol
+
+from homeassistant.const import (
+        TEMP_CELSIUS,
+        CONF_IP_ADDRESS
+)
+from homeassistant.helpers.entity import Entity
+from homeassistant.helpers.aiohttp_client import async_get_clientsession
+import homeassistant.helpers.config_validation as cv
+from homeassistant.components.sensor import PLATFORM_SCHEMA
+from homeassistant.exceptions import PlatformNotReady
+from homeassistant.helpers.event import async_track_time_interval
+
+_LOGGER = logging.getLogger(__name__)
+
+ATTR_PV1_CURRENT = 'PV1 Current'
+ATTR_PV2_CURRENT = 'PV2 Current'
+ATTR_PV1_VOLTAGE = 'PV1 Voltage'
+ATTR_PV2_VOLTAGE = 'PV2 Voltage'
+ATTR_PV1_POWER = 'PV1 Input Power'
+ATTR_PV2_POWER = 'PV2 Input Power'
+ATTR_OUTPUT_CURRENT = 'Output Current'
+ATTR_NETWORK_VOLTAGE = 'Network Voltage'
+ATTR_POWER_NOW = 'Power Now'
+ATTR_EXPORTED_POWER = 'Exported Power'
+ATTR_EXPORTED_ENERGY = 'Exported energy'
+ATTR_GRID_CONSUMPTION = 'Grid Consumption'
+ATTR_FREQ_AC = 'FAC1'
+ATTR_TODAY_ENERGY = 'Today\'s Energy'
+ATTR_TOTAL_ENERGY = 'Total Energy'
+ATTR_EPS_VOLTAGE = 'EPS Voltage'
+ATTR_EPS_CURRENT = 'EPS Current'
+ATTR_EPS_POWER = 'EPS Power'
+ATTR_EPS_FREQUENCY = 'EPS Frequency'
+ATTR_BMS_LOST = 'BMS Lost'
+
+# key: name of sensor
+# value.0: index
+# value.1: unit (String) or None
+# from https://github.com/GitHobi/solax/wiki/direct-data-retrieval
+INVERTER_SENSORS = {
+    'PV1 Current':          (0, 'A'),
+    'PV2 Current':          (1, 'A'),
+    'PV1 Voltage':          (2, 'V'),
+    'PV2 Voltage':          (3, 'V'),
+
+    'Grid Output Current':  (4, 'A'),
+    'Grid Network Voltage': (5, 'V'),
+    'Grid Power':           (6, 'W'),
+
+    'Inverter Temperature': (7, TEMP_CELSIUS),
+    'Yield Today':          (8, 'kWh'),
+    'Yield Month':          (9, 'kWh'),
+    'Grid Feed in Power':   (10, 'W'),
+    'PV1 Power':            (11, 'W'),
+    'PV2 Power':            (12, 'W'),
+
+    'Battery Voltage':      (13, 'V'),
+    'Battery Current':      (14, 'A'),
+    'Battery Power':        (15, 'W'),
+    'Battery Temperature':  (16, TEMP_CELSIUS),
+    'Battery Capacity':     (17, '%'),
+
+    'Battery Yield':        (19, 'kWh'),
+
+    'Energy to Grid':       (41, 'kWh'),
+    'Energy from Grid':     (42, 'kWh'),
+    'Grid Frequency':       (50, 'Hz'),
+    'EPS Voltage':          (53, 'V'),
+    'EPS Current':          (54, 'A'),
+    'EPS Apparent Power':   (55, 'VA'),
+    'EPS Frequency':        (56, 'Hz'),
+
+    # ATTR_OUTPUT_CURRENT: 'A',
+    # ATTR_NETWORK_VOLTAGE: 'V',
+    # ATTR_POWER_NOW: 'W',
+    # ATTR_EXPORTED_POWER: 'W',
+    # ATTR_EXPORTED_ENERGY: 'kWh',
+    # ATTR_GRID_CONSUMPTION: 'kWh',
+    # ATTR_FREQ_AC: 'Hz',
+    # ATTR_TODAY_ENERGY: 'kWh',
+    # ATTR_TOTAL_ENERGY: 'kWh',
+    # ATTR_EPS_VOLTAGE: 'V',
+    # ATTR_EPS_CURRENT: 'A',
+    # ATTR_EPS_POWER: 'W',
+    # ATTR_EPS_FREQUENCY: 'Hz',
+    # ATTR_BMS_LOST: None,
+}
+
+PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend({
+    vol.Required(CONF_IP_ADDRESS): cv.string,
+})
+
+SCAN_INTERVAL = timedelta(seconds=30)
+REQUEST_TIMEOUT = 5
+
+REAL_TIME_DATA_ENDPOINT = 'http://{ip_address}/api/realTimeData.htm'
+
+REAL_TIME_DATA_SCHEMA = vol.Schema({
+    vol.Required('method'): cv.string,
+    vol.Required('version'): cv.string,
+    vol.Required('type'): cv.string,
+    vol.Required('SN'): cv.string,
+    vol.Required('Data'): vol.Schema(vol.All([vol.Coerce(float)], vol.Length(min=68,max=68))),
+    vol.Required('Status'): cv.positive_int,
+}, extra=vol.REMOVE_EXTRA)
+
+class SolaxRequestError(Exception):
+    """Error to indicate a Solax API request has failed."""
+    pass
+
+
+async def async_setup_platform(hass, config, async_add_entities, discovery_info=None):
+    """Setup the sensor platform."""
+    endpoint = RealTimeDataEndpoint(hass, config.get(CONF_IP_ADDRESS))
+    hass.async_add_job(endpoint.async_refresh)
+    async_track_time_interval(hass, endpoint.async_refresh, SCAN_INTERVAL)
+    devices = []
+    for x in INVERTER_SENSORS:
+        devices.append(Inverter(x))
+    endpoint.sensors = devices
+    async_add_entities(devices)
+
+
+async def async_solax_real_time_request(hass, schema, ip_address, retry, wait_time=0):
+    if wait_time > 0:
+        _LOGGER.warn("Timeout connecting to Solax, waiting %d to retry.", wait_time)
+        asyncio.sleep(wait_time)
+    new_wait = (wait_time*2)+5
+    retry = retry - 1
+    try:
+        session = async_get_clientsession(hass)
+
+        with async_timeout.timeout(REQUEST_TIMEOUT, loop=hass.loop):
+            req = await session.get(REAL_TIME_DATA_ENDPOINT.format(ip_address=ip_address))
+        _LOGGER.error("MADE IT FAM")
+        # json_response = await req.json(content_type=None)
+
+        garbage = await req.read()
+        _LOGGER.error("AAAAA")
+        stringo = garbage.decode("utf-8").replace(",,", ",0.0,").replace(",,", ",0.0,")
+        _LOGGER.error(stringo)
+        json_response = json.loads(stringo)
+        _LOGGER.error("CCCC")
+        # data = await req.content.decode('utf-8')
+
+        # _LOGGER.error(data)
+        # _LOGGER.error("intermediate")
+        # json_response = json.loads(data)
+        # _LOGGER.error("BINGO IT FAM")
+        return schema(json_response)
+    except (asyncio.TimeoutError):
+        if retry > 0:
+            return await async_solax_dashboard_request(hass, schema, solax_id, token, retry, new_wait)
+        _LOGGER.error("Too many timeouts connecting to Solax.")
+    except (aiohttp.ClientError) as clientErr:
+        _LOGGER.error("Could not connect to Solax API endpoint")
+        _LOGGER.error(clientErr)
+    except ValueError:
+        _LOGGER.error("Received non-JSON data from Solax API endpoint")
+    except vol.Invalid as err:
+        _LOGGER.error("Received unexpected JSON from Solax"
+                      " API endpoint: %s", err)
+        _LOGGER.error(json_response)
+    raise SolaxRequestError
+
+def parse_solax_battery_response(json):
+    data_list = json['Data']
+    result = {}
+    for k, v in INVERTER_SENSORS.items():
+        response_index = v[0]
+        result[k] = data_list[response_index]
+    return result
+
+
+class RealTimeDataEndpoint:
+    """Representation of a Sensor."""
+
+    def __init__(self, hass, ip_address):
+        """Initialize the sensor."""
+        self.hass = hass
+        self.ip_address = ip_address
+        self.data = {}
+        self.ready = asyncio.Event()
+        self.sensors = []
+
+    async def async_refresh(self, now=None):
+        """Fetch new state data for the sensor.
+
+        This is the only method that should fetch new data for Home Assistant.
+        """
+        try:
+            json = await async_solax_real_time_request(self.hass, REAL_TIME_DATA_SCHEMA, self.ip_address, 3)
+            self.data = parse_solax_battery_response(json)
+            self.ready.set()
+        except SolaxRequestError:
+            if now is not None:
+                self.ready.clear()
+            else:
+                raise PlatformNotReady
+        for s in self.sensors:
+            if s._key in self.data:
+                s._value = self.data[s._key]
+            s.async_schedule_update_ha_state()
+
+
+class Inverter(Entity):
+    def __init__(self, key):
+        self._key = key
+        self._value = None
+    
+    @property
+    def state(self):
+        return self._value
+
+    @property
+    def name(self):
+        return self._key
+
+    @property
+    def unit_of_measurement(self):
+        """Return the unit of measurement."""
+        return INVERTER_SENSORS[self._key][1]
+    
+    @property
+    def should_poll(self):
+        """No polling needed."""
+        return False

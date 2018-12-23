@@ -57,12 +57,14 @@ sun:
 sensor:
   # Weather prediction
   - platform: yr
-  - platform: solax_inverter
-    id: '120128'
-    token: '7b52d4b9c2bd482aaa63075dadef94ce'
-  - platform: solax
-    id: '120128'
-    token: '7b52d4b9c2bd482aaa63075dadef94ce'
+  # - platform: solax_inverter
+  #   id: '120128'
+  #   token: '7b52d4b9c2bd482aaa63075dadef94ce'
+  # - platform: solax
+  #   id: '120128'
+  #   token: '7b52d4b9c2bd482aaa63075dadef94ce'
+  - platform: solax_realtime
+    ip_address: '192.168.0.101'
 
 # Text to speech
 tts:
