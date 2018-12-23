@@ -170,7 +170,7 @@ class Battery(Entity):
 
     @property
     def name(self):
-        return self._key
+        return "Battery {}".format(self._key)
 
     @property
     def unit_of_measurement(self):
