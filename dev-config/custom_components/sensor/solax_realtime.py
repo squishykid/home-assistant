@@ -31,14 +31,14 @@ INVERTER_SENSORS = {
     'PV1 Voltage':          (2, 'V'),
     'PV2 Voltage':          (3, 'V'),
 
-    'Grid Output Current':  (4, 'A'),
-    'Grid Network Voltage': (5, 'V'),
-    'Grid Power':           (6, 'W'),
+    'Output Current':  (4, 'A'),
+    'Network Voltage': (5, 'V'),
+    'Power Now':            (6, 'W'),
 
     'Inverter Temperature': (7, TEMP_CELSIUS),
-    'Yield Today':          (8, 'kWh'),
-    'Yield Month':          (9, 'kWh'),
-    'Grid Feed in Power':   (10, 'W'),
+    'Today\'s Energy':          (8, 'kWh'),
+    'Total Energy':          (9, 'kWh'),
+    'Exported Power':       (10, 'W'),
     'PV1 Power':            (11, 'W'),
     'PV2 Power':            (12, 'W'),
 
@@ -46,12 +46,12 @@ INVERTER_SENSORS = {
     'Battery Current':      (14, 'A'),
     'Battery Power':        (15, 'W'),
     'Battery Temperature':  (16, TEMP_CELSIUS),
-    'Battery Capacity':     (17, '%'),
+    'Battery Remaining Capacity': (17, '%'),
 
-    'Battery Yield':        (19, 'kWh'),
+    'Battery Energy':        (19, 'kWh'),
 
-    'Energy to Grid':       (41, 'kWh'),
-    'Energy from Grid':     (42, 'kWh'),
+    # 'Energy to Grid':       (41, 'kWh'),
+    # 'Energy from Grid':     (42, 'kWh'),
     'Grid Frequency':       (50, 'Hz'),
     'EPS Voltage':          (53, 'V'),
     'EPS Current':          (54, 'A'),
