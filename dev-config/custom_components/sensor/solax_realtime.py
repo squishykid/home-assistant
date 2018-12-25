@@ -105,21 +105,9 @@ async def async_solax_real_time_request(hass, schema, ip_address, retry, wait_ti
 
         with async_timeout.timeout(REQUEST_TIMEOUT, loop=hass.loop):
             req = await session.get(REAL_TIME_DATA_ENDPOINT.format(ip_address=ip_address))
-        _LOGGER.error("MADE IT FAM")
-        # json_response = await req.json(content_type=None)
-
         garbage = await req.read()
-        _LOGGER.error("AAAAA")
-        stringo = garbage.decode("utf-8").replace(",,", ",0.0,").replace(",,", ",0.0,")
-        _LOGGER.error(stringo)
-        json_response = json.loads(stringo)
-        _LOGGER.error("CCCC")
-        # data = await req.content.decode('utf-8')
-
-        # _LOGGER.error(data)
-        # _LOGGER.error("intermediate")
-        # json_response = json.loads(data)
-        # _LOGGER.error("BINGO IT FAM")
+        formated = garbage.decode("utf-8").replace(",,", ",0.0,").replace(",,", ",0.0,")
+        json_response = json.loads(formated)
         return schema(json_response)
     except (asyncio.TimeoutError):
         if retry > 0:
