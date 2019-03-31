@@ -55,7 +55,7 @@ INVERTER_SENSORS = {
     'Grid Frequency':       (50, 'Hz'),
     'EPS Voltage':          (53, 'V'),
     'EPS Current':          (54, 'A'),
-    'EPS Apparent Power':   (55, 'VA'),
+    'EPS Power':            (55, 'W'),
     'EPS Frequency':        (56, 'Hz'),
 }
 
@@ -186,3 +186,4 @@ class Inverter(Entity):
     def should_poll(self):
         """No polling needed."""
         return False
+
