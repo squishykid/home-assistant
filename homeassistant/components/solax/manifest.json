@@ -1,6 +1,7 @@
 {
     "domain": "solax",
     "name": "Solax Inverter",
+    "config_flow": true,
     "documentation": "https://www.home-assistant.io/integrations/solax",
     "requirements": [
       "solax==0.2.2"

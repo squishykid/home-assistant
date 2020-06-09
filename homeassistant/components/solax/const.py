@@ -1,0 +1,2 @@
+DOMAIN = "solax"
+DEFAULT_PORT = 80
